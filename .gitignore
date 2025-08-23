@@ -1,0 +1,39 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+pip-wheel-metadata/
+
+# Virtual env
+.venv/
+
+# === Test & tooling caches ===
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+coverage.xml
+
+# === Notebooks ===
+.ipynb_checkpoints/
+
+# === IDE/OS junk ===
+.cursor/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === Env & local runtime state ===
+# שמור/י רק את דוגמת ה-env בריפו, לא את הקבצים האמיתיים
+.env
+.env.*
+!.env.example
+state.json
