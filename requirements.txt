@@ -1,0 +1,6 @@
+python-telegram-bot==21.*
+yfinance==0.2.*
+python-dotenv==1.*
+pendulum==3.*
+apscheduler==3.*
+loguru==0.7.*
