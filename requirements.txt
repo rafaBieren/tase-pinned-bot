@@ -4,3 +4,4 @@ python-dotenv==1.*
 pendulum==3.*
 apscheduler==3.*
 loguru==0.7.*
+curl_cffi==0.6.*
