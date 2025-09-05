@@ -15,16 +15,19 @@ Notes:
 """
 
 import os
+import sys
+from pathlib import Path
 os.environ.setdefault("YF_USE_CURL_CFFI", "0")
+sys.path.append(str(Path(__file__).resolve().parent))
 import asyncio
 from loguru import logger
 import pendulum
 
-from .settings import settings
-from .indices import fetch_all
-from .formatter import build_message
-from .telegram_client import TgClient
-from .state import State
+from settings import settings
+from indices import fetch_all
+from formatter import build_message
+from telegram_client import TgClient
+from state import State
 
 
 def is_trading_hours(now: pendulum.DateTime) -> bool:
