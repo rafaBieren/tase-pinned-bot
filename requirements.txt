@@ -1,5 +1,6 @@
-python-telegram-bot==21.*
 yfinance==0.2.*
+curl_cffi>=0.7.1,<0.9
+python-telegram-bot==21.*
 python-dotenv==1.*
 pendulum==3.*
 apscheduler==3.*
