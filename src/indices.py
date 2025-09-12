@@ -15,6 +15,11 @@ from __future__ import annotations
 from typing import Optional, Iterable, List
 import math
 from loguru import logger
+import os
+
+# Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
+os.environ.setdefault("YF_USE_CURL_CFFI", "false")
+
 import yfinance as yf
 
 

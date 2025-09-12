@@ -6,11 +6,13 @@ from dotenv import load_dotenv
 from telegram.error import InvalidToken, TimedOut
 from telegram.request import HTTPXRequest
 
-from ta125_update import send_ta125_update
+from settings import settings
+from indices import fetch_all
+from formatter import build_message
 
 
 async def main() -> None:
-    """Send a single TA-125 update message at startup and exit."""
+    """Send a single indices update message at startup and exit."""
     # Ensure .env values override any existing environment variables
     load_dotenv(override=True)
 
@@ -37,7 +39,27 @@ async def main() -> None:
         # Network is slow or blocked; proceed and let send attempt retries handle it
         pass
 
-    await send_ta125_update(chat_id=chat_id, bot=bot)
+    # Build a message for the configured indices (skipping ones with missing data)
+    indices_map = settings.indices_map()
+    quotes = fetch_all(indices_map)
+
+    # If everything failed (e.g., data source outage), send a friendly fallback text
+    if not quotes:
+        text = "לא הצלחתי להביא כרגע נתונים למדדים. נסו שוב מאוחר יותר."
+    else:
+        text = build_message(quotes=quotes, tz=settings.tz)
+
+    # Try to send with simple backoff to tolerate transient Telegram timeouts
+    delays = [0, 2, 4]
+    for attempt in range(3):
+        try:
+            await bot.send_message(chat_id=chat_id, text=text, disable_web_page_preview=True)
+            break
+        except TimedOut:
+            if attempt < 2:
+                await asyncio.sleep(delays[attempt + 1])
+                continue
+            return
 
 
 if __name__ == "__main__":
