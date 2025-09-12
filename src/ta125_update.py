@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 import pandas as pd
 import yfinance as yf
 from telegram import Bot
+from telegram.error import TimedOut
 
 
 def _to_local_index(idx: pd.DatetimeIndex, tz_name: str) -> pd.DatetimeIndex:
@@ -193,7 +194,18 @@ async def send_ta125_update(chat_id: str, bot: Optional[Bot] = None) -> None:
     except Exception:
         text = "לא הצלחתי להביא כרגע את שינוי מדד ת״א-125. נסו שוב מאוחר יותר."
 
-    await bot.send_message(chat_id=chat_id, text=text)
+    # Try to send with simple backoff to tolerate transient Telegram timeouts
+    delays = [0, 2, 4]
+    for attempt in range(3):
+        try:
+            await bot.send_message(chat_id=chat_id, text=text)
+            break
+        except TimedOut:
+            if attempt < 2:
+                await asyncio.sleep(delays[attempt + 1])
+                continue
+            # Give up silently after retries; caller already did useful work
+            return
 
     if close_bot:
         await bot.close()

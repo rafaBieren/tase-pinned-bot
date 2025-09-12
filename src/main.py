@@ -3,7 +3,8 @@ import asyncio
 
 from telegram import Bot
 from dotenv import load_dotenv
-from telegram.error import InvalidToken
+from telegram.error import InvalidToken, TimedOut
+from telegram.request import HTTPXRequest
 
 from ta125_update import send_ta125_update
 
@@ -21,7 +22,9 @@ async def main() -> None:
     if not chat_id:
         raise SystemExit("Missing TELEGRAM_CHAT in environment or .env")
 
-    bot = Bot(token=token)
+    # Use more generous HTTP timeouts to avoid spurious startup failures
+    request = HTTPXRequest(read_timeout=30.0, write_timeout=30.0, connect_timeout=10.0, pool_timeout=10.0)
+    bot = Bot(token=token, request=request)
 
     # Validate token early with getMe for a clearer error
     try:
@@ -30,6 +33,9 @@ async def main() -> None:
         raise SystemExit(
             "Invalid TELEGRAM_BOT_TOKEN (Unauthorized). Check the token with @BotFather and update .env."
         )
+    except TimedOut:
+        # Network is slow or blocked; proceed and let send attempt retries handle it
+        pass
 
     await send_ta125_update(chat_id=chat_id, bot=bot)
 
