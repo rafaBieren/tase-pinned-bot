@@ -30,7 +30,7 @@ class Settings:
     tz: str = os.getenv("TIMEZONE", "Asia/Jerusalem")
     indices_raw: str = os.getenv(
         "INDICES",
-        "TA-35=TA35.TA,TA-125=^TA125.TA,TA-90=TA90.TA,Banks-5=TA-BANKS.TA",
+        "TA-35=^TA35,TA-125=^TA125,TA-90=^TA90",
     )
     update_interval_sec: int = int(os.getenv("UPDATE_INTERVAL_SEC", "60"))
     off_hours_interval_sec: int = int(os.getenv("OFF_HOURS_INTERVAL_SEC", "300"))

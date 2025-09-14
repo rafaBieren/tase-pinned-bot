@@ -4,12 +4,11 @@ from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from typing import Optional, Tuple
 
-import pandas as pd
-import os as _os
-
 # Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
-_os.environ.setdefault("YF_USE_CURL_CFFI", "false")
+# This MUST be set before any yfinance import
+os.environ["YF_USE_CURL_CFFI"] = "false"
 
+import pandas as pd
 import yfinance as yf
 from telegram import Bot
 from telegram.error import TimedOut

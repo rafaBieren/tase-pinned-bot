@@ -1,14 +1,18 @@
 import os
 import asyncio
 
+# Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
+# This MUST be set before any yfinance import (which happens in indices module)
+os.environ["YF_USE_CURL_CFFI"] = "false"
+
 from telegram import Bot
 from dotenv import load_dotenv
 from telegram.error import InvalidToken, TimedOut
 from telegram.request import HTTPXRequest
 
-from settings import settings
-from indices import fetch_all
-from formatter import build_message
+from .settings import settings
+from .indices import fetch_all
+from .formatter import build_message
 
 
 async def main() -> None:
@@ -20,9 +24,13 @@ async def main() -> None:
     chat_id = (os.getenv("TELEGRAM_CHAT") or "").strip()
 
     if not token:
-        raise SystemExit("Missing TELEGRAM_BOT_TOKEN in environment or .env")
+        print("❌ Missing TELEGRAM_BOT_TOKEN in environment or .env")
+        print("Please create a .env file with your bot token. See README.md for details.")
+        return
     if not chat_id:
-        raise SystemExit("Missing TELEGRAM_CHAT in environment or .env")
+        print("❌ Missing TELEGRAM_CHAT in environment or .env")
+        print("Please create a .env file with your chat ID. See README.md for details.")
+        return
 
     # Use more generous HTTP timeouts to avoid spurious startup failures
     request = HTTPXRequest(read_timeout=30.0, write_timeout=30.0, connect_timeout=10.0, pool_timeout=10.0)
@@ -49,16 +57,22 @@ async def main() -> None:
     else:
         text = build_message(quotes=quotes, tz=settings.tz)
 
+    print(f"📊 Generated message with {len(quotes)} indices")
+    print(f"📝 Message preview: {text[:100]}...")
+
     # Try to send with simple backoff to tolerate transient Telegram timeouts
     delays = [0, 2, 4]
     for attempt in range(3):
         try:
             await bot.send_message(chat_id=chat_id, text=text, disable_web_page_preview=True)
+            print("✅ Message sent successfully to Telegram!")
             break
         except TimedOut:
             if attempt < 2:
+                print(f"⏳ Timeout, retrying in {delays[attempt + 1]} seconds...")
                 await asyncio.sleep(delays[attempt + 1])
                 continue
+            print("❌ Failed to send message after retries")
             return
 
 
