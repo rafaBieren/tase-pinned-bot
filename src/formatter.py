@@ -12,18 +12,18 @@ from __future__ import annotations
 from typing import Iterable
 import pendulum
 
-
+# format a number with thousands separators and fixed decimals
 def _fmt_num(x: float, digits: int = 2) -> str:
     """Format a number with thousands separators and fixed decimals."""
     return f"{x:,.{digits}f}"
 
-
+# format a percentage with an explicit sign
 def _fmt_pct(x: float, digits: int = 2) -> str:
     """Format a percentage with an explicit sign."""
     sign = "+" if x >= 0 else ""
     return f"{sign}{x:.{digits}f}%"
 
-
+# assemble the full HTML message body
 def build_message(quotes: Iterable, tz: str) -> str:
     """Assemble the full HTML message body."""
     now = pendulum.now(tz).format("HH:mm")

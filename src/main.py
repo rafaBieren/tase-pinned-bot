@@ -4,6 +4,7 @@ import asyncio
 # Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
 # This MUST be set before any yfinance import (which happens in indices module)
 os.environ["YF_USE_CURL_CFFI"] = "false"
+os.environ["YF_DISABLE_CURL_CFFI"] = "true"
 
 from telegram import Bot
 from dotenv import load_dotenv
