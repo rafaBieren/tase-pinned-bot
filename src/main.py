@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 from telegram.error import InvalidToken, TimedOut
 from telegram.request import HTTPXRequest
 
-from .settings import settings
-from .indices import fetch_all
-from .formatter import build_message
+from settings import settings
+from indices import fetch_all
+from formatter import build_message
 
 
 async def main() -> None:
