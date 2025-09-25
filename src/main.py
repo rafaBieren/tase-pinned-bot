@@ -8,16 +8,20 @@ os.environ["YF_DISABLE_CURL_CFFI"] = "true"
 
 from telegram import Bot
 from dotenv import load_dotenv
-from telegram.error import InvalidToken, TimedOut
+from telegram.error import InvalidToken, TimedOut, BadRequest
 from telegram.request import HTTPXRequest
 
 from settings import settings
 from indices import fetch_all
 from formatter import build_message
 
+UPDATE_INTERVAL_SEC = 300
+SEND_RETRY_DELAYS = [0, 2, 4]
+FALLBACK_TEXT = "\u05dc\u05d0 \u05d4\u05e6\u05dc\u05d7\u05ea\u05d9 \u05dc\u05d4\u05d1\u05d9\u05d0 \u05db\u05e8\u05d2\u05e2 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05dc\u05de\u05d3\u05d3\u05d9\u05dd. \u05e0\u05e1\u05d5 \u05e9\u05d5\u05d1 \u05de\u05d0\u05d5\u05d7\u05e8 \u05d9\u05d5\u05ea\u05e8."
+
 
 async def main() -> None:
-    """Send a single indices update message at startup and exit."""
+    """Send indices update message and refresh it every 5 minutes."""
     # Ensure .env values override any existing environment variables
     load_dotenv(override=True)
 
@@ -25,11 +29,11 @@ async def main() -> None:
     chat_id = (os.getenv("TELEGRAM_CHAT") or "").strip()
 
     if not token:
-        print("❌ Missing TELEGRAM_BOT_TOKEN in environment or .env")
+        print("!! Missing TELEGRAM_BOT_TOKEN in environment or .env")
         print("Please create a .env file with your bot token. See README.md for details.")
         return
     if not chat_id:
-        print("❌ Missing TELEGRAM_CHAT in environment or .env")
+        print("!! Missing TELEGRAM_CHAT in environment or .env")
         print("Please create a .env file with your chat ID. See README.md for details.")
         return
 
@@ -48,33 +52,66 @@ async def main() -> None:
         # Network is slow or blocked; proceed and let send attempt retries handle it
         pass
 
-    # Build a message for the configured indices (skipping ones with missing data)
-    indices_map = settings.indices_map()
-    quotes = fetch_all(indices_map)
+    message_id = None
+    last_text = None
 
-    # If everything failed (e.g., data source outage), send a friendly fallback text
-    if not quotes:
-        text = "לא הצלחתי להביא כרגע נתונים למדדים. נסו שוב מאוחר יותר."
-    else:
-        text = build_message(quotes=quotes, tz=settings.tz)
+    while True:
+        indices_map = settings.indices_map()
+        quotes = fetch_all(indices_map)
 
-    print(f"📊 Generated message with {len(quotes)} indices")
-    print(f"📝 Message preview: {text[:100]}...")
+        if not quotes:
+            text = FALLBACK_TEXT
+        else:
+            text = build_message(quotes=quotes, tz=settings.tz)
 
-    # Try to send with simple backoff to tolerate transient Telegram timeouts
-    delays = [0, 2, 4]
-    for attempt in range(3):
-        try:
-            await bot.send_message(chat_id=chat_id, text=text, disable_web_page_preview=True)
-            print("✅ Message sent successfully to Telegram!")
-            break
-        except TimedOut:
-            if attempt < 2:
-                print(f"⏳ Timeout, retrying in {delays[attempt + 1]} seconds...")
-                await asyncio.sleep(delays[attempt + 1])
-                continue
-            print("❌ Failed to send message after retries")
-            return
+        print(f"[INFO] Generated message with {len(quotes)} indices")
+        print(f"[INFO] Message preview: {text[:100]}...")
+
+        if message_id is None:
+            send_success = False
+            for attempt in range(len(SEND_RETRY_DELAYS)):
+                try:
+                    msg = await bot.send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        disable_web_page_preview=True,
+                    )
+                    message_id = msg.message_id
+                    last_text = text
+                    send_success = True
+                    print("[OK] Message sent successfully to Telegram!")
+                    break
+                except TimedOut:
+                    if attempt < len(SEND_RETRY_DELAYS) - 1:
+                        delay = SEND_RETRY_DELAYS[attempt + 1]
+                        print(f"[WARN] Timeout, retrying in {delay} seconds...")
+                        await asyncio.sleep(delay)
+                        continue
+                    print("[ERROR] Failed to send message after retries")
+            if not send_success:
+                return
+        else:
+            if text == last_text:
+                print("[INFO] No changes detected; skipping edit.")
+            else:
+                try:
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=text,
+                        disable_web_page_preview=True,
+                    )
+                    last_text = text
+                    print("[OK] Message edited successfully.")
+                except BadRequest as exc:
+                    if "message is not modified" in str(exc).lower():
+                        print("[INFO] Telegram reported message is not modified; skipping.")
+                    else:
+                        print(f"[ERROR] Failed to edit message: {exc}")
+                except TimedOut:
+                    print("[WARN] Edit timed out; will retry on next cycle.")
+
+        await asyncio.sleep(UPDATE_INTERVAL_SEC)
 
 
 if __name__ == "__main__":
