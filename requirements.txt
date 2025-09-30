@@ -6,3 +6,4 @@ beautifulsoup4==4.*
 gunicorn
 flask
 loguru
+pendulum
