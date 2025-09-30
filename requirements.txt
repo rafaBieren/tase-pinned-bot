@@ -3,3 +3,4 @@ python-dotenv==1.*
 yfinance==0.*
 requests==2.*
 beautifulsoup4==4.*
+gunicorn
