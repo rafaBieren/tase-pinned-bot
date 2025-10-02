@@ -9,7 +9,7 @@ from settings import settings
 from main import main as run_bot_main
 
 _WORKING_DAYS = {6, 0, 1, 2, 3}
-_START_TIME = time(hour=20, minute=48)
+_START_TIME = time(hour=9, minute=30)
 _STOP_TIME = time(hour=18, minute=0)
 _SLEEP_GRANULARITY_SEC = 60.0
 
