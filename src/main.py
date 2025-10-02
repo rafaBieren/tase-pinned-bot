@@ -8,7 +8,7 @@ os.environ["YF_DISABLE_CURL_CFFI"] = "true"
 
 from telegram import Bot
 from dotenv import load_dotenv
-from telegram.error import InvalidToken, TimedOut, BadRequest
+from telegram.error import InvalidToken, TimedOut, BadRequest, Forbidden
 from telegram.request import HTTPXRequest
 
 from settings import settings
@@ -79,6 +79,19 @@ async def main() -> None:
                     )
                     message_id = msg.message_id
                     last_text = text
+                    try:
+                        await bot.pin_chat_message(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            disable_notification=True,
+                        )
+                        print("[OK] Message pinned successfully.")
+                    except Forbidden as exc:
+                        print(f"[WARN] Bot lacks rights to pin message: {exc}")
+                    except BadRequest as exc:
+                        print(f"[WARN] Failed to pin message: {exc}")
+                    except TimedOut:
+                        print("[WARN] Pin request timed out; will retry on next cycle.")
                     send_success = True
                     print("[OK] Message sent successfully to Telegram!")
                     break

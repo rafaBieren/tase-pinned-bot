@@ -42,4 +42,14 @@ def build_message(quotes: Iterable, tz: str) -> str:
         pct_formatted = _fmt_pct(q.change_pct).replace(".", "\\.").replace("+", "\\+")
         lines.append(f"{emoji} {name_escaped}: {pct_formatted} \\({price_formatted}\\)")
     lines.append("_הערה: ייתכן עיכוב קטן בעדכון הנתונים\\._")
+    
+    # Add separator and promotional content
+    lines.append("")
+
+    lines.append("*הטבה לפתיחת חשבון מסחר במיטב טרייד* 📈: https://bit\\.ly/ValueInvestingInIsrael")
+    lines.append("*הטבה לחברי הקהילה עם סוכן פיננסי \\+ החזר מס בתנאים מעולים* 💰: https://surense\\.com/app/p/BcR6zrV")
+    lines.append("")
+    lines.append("*השקעות ערך בישראל* 🇮🇱: https://t\\.me/israelValueInvestments")
+    lines.append("*קבוצת הדיונים*: https://t\\.me/ValueInvestingIsrael")
+    
     return "\n".join(lines)
