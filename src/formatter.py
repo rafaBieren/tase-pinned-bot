@@ -25,10 +25,21 @@ def _fmt_pct(x: float, digits: int = 2) -> str:
 
 
 def build_message(quotes: Iterable, tz: str) -> str:
-    """Assemble the full HTML message body."""
+    """Assemble the full MarkdownV2 message body."""
     now = pendulum.now(tz).format("HH:mm")
-    lines = [f"<b>מדדי ת״א – שינוי יומי</b> <i>(עודכן: {now})</i>"]
+    lines = [f"*מדדי ת״א – שינוי יומי* _\\(עודכן: {now}\\)_"]
     for q in quotes:
-        lines.append(f"• {q.name}: {_fmt_pct(q.change_pct)} ({_fmt_num(q.price, 2)})")
-    lines.append("<i>הערה: ייתכן עיכוב קטן בעדכון הנתונים.</i>")
+        # Choose emoji based on change percentage
+        if q.change_pct > 0:
+            emoji = "🟢"
+        elif q.change_pct < 0:
+            emoji = "🔴"
+        else:
+            emoji = "⚪"
+        # Escape special characters for MarkdownV2
+        name_escaped = q.name.replace("-", "\\-")
+        price_formatted = _fmt_num(q.price, 2).replace(",", "\\,").replace(".", "\\.")
+        pct_formatted = _fmt_pct(q.change_pct).replace(".", "\\.").replace("+", "\\+")
+        lines.append(f"{emoji} {name_escaped}: {pct_formatted} \\({price_formatted}\\)")
+    lines.append("_הערה: ייתכן עיכוב קטן בעדכון הנתונים\\._")
     return "\n".join(lines)

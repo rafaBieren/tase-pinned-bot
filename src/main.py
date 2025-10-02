@@ -1,4 +1,4 @@
-import os
+﻿import os
 import asyncio
 
 # Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
@@ -74,6 +74,7 @@ async def main() -> None:
                     msg = await bot.send_message(
                         chat_id=chat_id,
                         text=text,
+                        parse_mode="MarkdownV2",
                         disable_web_page_preview=True,
                     )
                     message_id = msg.message_id
@@ -99,6 +100,7 @@ async def main() -> None:
                         chat_id=chat_id,
                         message_id=message_id,
                         text=text,
+                        parse_mode="MarkdownV2",
                         disable_web_page_preview=True,
                     )
                     last_text = text
