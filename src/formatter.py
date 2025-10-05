@@ -39,7 +39,7 @@ def build_message(quotes: Iterable, tz: str) -> str:
         # Escape special characters for MarkdownV2
         name_escaped = q.name.replace("-", "\\-")
         price_formatted = _fmt_num(q.price, 2).replace(",", "\\,").replace(".", "\\.")
-        pct_formatted = _fmt_pct(q.change_pct).replace(".", "\\.").replace("+", "\\+")
+        pct_formatted = _fmt_pct(q.change_pct).replace(".", "\\.").replace("+", "\\+").replace("-", "\\-")
         lines.append(f"{emoji} {name_escaped}: {pct_formatted} \\({price_formatted}\\)")
     lines.append("_הערה: ייתכן עיכוב קטן בעדכון הנתונים\\._")
     
