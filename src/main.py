@@ -1,5 +1,6 @@
 ﻿import os
 import asyncio
+from typing import Optional
 
 # Work around yfinance's optional curl_cffi transport causing attribute errors in some environments
 # This MUST be set before any yfinance import (which happens in indices module)
@@ -14,13 +15,14 @@ from telegram.request import HTTPXRequest
 from settings import settings
 from indices import fetch_all
 from formatter import build_message
+from tase_calendar import TradingDayInfo
 
 UPDATE_INTERVAL_SEC = 300
 SEND_RETRY_DELAYS = [0, 2, 4]
 FALLBACK_TEXT = "לא הצלחתי להביא כרגע נתונים למדדים. נסו שוב מאוחר יותר."
 
 
-async def main(run_once: bool = False, market_open: bool = True) -> None:
+async def main(run_once: bool = False, market_open: bool = True, day_info: Optional[TradingDayInfo] = None) -> None:
     """Send indices update message and refresh it every 5 minutes."""
     # Ensure .env values override any existing environment variables
     load_dotenv(override=True)
@@ -62,7 +64,12 @@ async def main(run_once: bool = False, market_open: bool = True) -> None:
         if not quotes:
             text = FALLBACK_TEXT
         else:
-            text = build_message(quotes=quotes, tz=settings.tz, market_closed=not market_open)
+            text = build_message(
+                quotes=quotes,
+                tz=settings.tz,
+                market_closed=not market_open,
+                day_info=day_info
+            )
 
         print(f"[INFO] Generated message with {len(quotes)} indices")
         print(f"[INFO] Message preview: {text[:100]}...")

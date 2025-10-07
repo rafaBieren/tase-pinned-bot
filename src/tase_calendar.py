@@ -7,94 +7,117 @@ change in trading days from 2026.
 """
 
 from __future__ import annotations
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Optional, Tuple
 
+@dataclass
+class TradingDayInfo:
+    """Holds all relevant information about a trading day's schedule."""
+    is_trading: bool
+    is_short: bool = False
+    reason: Optional[str] = None
+    start_time: Optional[time] = None
+    stop_time: Optional[time] = None
+
 # TASE holidays for 2025 (no trading)
 _HOLIDAYS_2025 = {
-    date(2025, 4, 13),   # Passover I
-    date(2025, 4, 30),   # Memorial Day
-    date(2025, 5, 1),    # Independence Day
-    date(2025, 6, 2),    # Shavuot
-    date(2025, 8, 3),    # Tisha B'Av
-    date(2025, 9, 22),   # Erev Rosh Hashanah
-    date(2025, 9, 23),   # Rosh Hashanah I
-    date(2025, 9, 24),   # Rosh Hashanah II
-    date(2025, 10, 1),   # Erev Yom Kippur
-    date(2025, 10, 2),   # Yom Kippur
-    date(2025, 10, 6),   # Erev Sukkot
-    date(2025, 10, 7),   # Sukkot I
-    date(2025, 10, 13),  # Erev Simchat Torah
-    date(2025, 10, 14),  # Simchat Torah
+    date(2025, 4, 13): "פסח",
+    date(2025, 4, 30): "יום הזיכרון",
+    date(2025, 5, 1): "יום העצמאות",
+    date(2025, 6, 2): "שבועות",
+    date(2025, 8, 3): "תשעה באב",
+    date(2025, 9, 22): "ערב ראש השנה",
+    date(2025, 9, 23): "ראש השנה",
+    date(2025, 9, 24): "ראש השנה",
+    date(2025, 10, 1): "ערב יום כיפור",
+    date(2025, 10, 2): "יום כיפור",
+    date(2025, 10, 6): "ערב סוכות",
+    date(2025, 10, 7): "סוכות",
+    date(2025, 10, 13): "ערב שמחת תורה",
+    date(2025, 10, 14): "שמחת תורה",
 }
 
-# Shortened trading days for 2025 (e.g., Chol HaMoed)
+# Shortened trading days for 2025
 _SHORT_DAYS_2025 = {
-    date(2025, 4, 14), date(2025, 4, 15), date(2025, 4, 16), date(2025, 4, 17),  # Chol HaMoed Pesach
-    date(2025, 10, 8), date(2025, 10, 9), date(2025, 10, 12),                    # Chol HaMoed Sukkot
+    date(2025, 4, 14): "חול המועד פסח",
+    date(2025, 4, 15): "חול המועד פסח",
+    date(2025, 4, 16): "חול המועד פסח",
+    date(2025, 4, 17): "חול המועד פסח",
+    date(2025, 10, 8): "חול המועד סוכות",
+    date(2025, 10, 9): "חול המועד סוכות",
+    date(2025, 10, 12): "חול המועד סוכות",
 }
 
 # TASE holidays for 2026 (no trading)
 _HOLIDAYS_2026 = {
-    date(2026, 4, 2),    # Passover I
-    date(2026, 4, 8),    # Passover VII
-    date(2026, 4, 21),   # Memorial Day
-    date(2026, 4, 22),   # Independence Day
-    date(2026, 5, 22),   # Shavuot
-    date(2026, 7, 23),   # Tisha B'Av
-    date(2026, 9, 11),   # Erev Rosh Hashanah
-    date(2026, 9, 21),   # Yom Kippur
-    date(2026, 9, 25),   # Erev Sukkot
-    date(2026, 10, 1),   # Erev Simchat Torah
-    date(2026, 10, 2),   # Simchat Torah
+    date(2026, 4, 2): "פסח",
+    date(2026, 4, 8): "שביעי של פסח",
+    date(2026, 4, 21): "יום הזיכרון",
+    date(2026, 4, 22): "יום העצמאות",
+    date(2026, 5, 22): "שבועות",
+    date(2026, 7, 23): "תשעה באב",
+    date(2026, 9, 11): "ערב ראש השנה",
+    date(2026, 9, 21): "יום כיפור",
+    date(2026, 9, 25): "ערב סוכות",
+    date(2026, 10, 1): "ערב שמחת תורה",
+    date(2026, 10, 2): "שמחת תורה",
 }
 
-# Shortened trading days for 2026 (e.g., Chol HaMoed)
+# Shortened trading days for 2026
 _SHORT_DAYS_2026 = {
-    date(2026, 4, 6), date(2026, 4, 7),                                      # Chol HaMoed Pesach
-    date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30),                 # Chol HaMoed Sukkot
+    date(2026, 4, 6): "חול המועד פסח",
+    date(2026, 4, 7): "חול המועד פסח",
+    date(2026, 9, 28): "חול המועד סוכות",
+    date(2026, 9, 29): "חול המועד סוכות",
+    date(2026, 9, 30): "חול המועד סוכות",
 }
 
-def is_trading_day(moment: datetime) -> bool:
-    """Check if a given datetime is a trading day, considering weekends and holidays."""
+
+def get_trading_day_info(moment: datetime) -> TradingDayInfo:
+    """
+    Get all schedule-related information for a given datetime.
+    This is the main entry point for the calendar module.
+    """
     d = moment.date()
     year = d.year
     weekday = d.weekday()
 
-    holidays = set()
-    if year == 2025:
-        holidays = _HOLIDAYS_2025
-    elif year == 2026:
-        holidays = _HOLIDAYS_2026
-    
+    # Check for holidays
+    holidays = _HOLIDAYS_2025 if year == 2025 else _HOLIDAYS_2026
     if d in holidays:
-        return False
+        return TradingDayInfo(is_trading=False, reason=holidays[d])
 
-    # Note: the check for the first trading day of 2026 (Jan 5) is implicitly handled
-    # by the weekday check below.
+    # Determine trading day based on week structure
+    is_trading_weekday = False
     if year < 2026 or (year == 2026 and d.month == 1 and d.day < 5):
         # Before Jan 5, 2026, trading is Sunday (6) to Thursday (3)
-        return weekday in {6, 0, 1, 2, 3}
+        if weekday in {6, 0, 1, 2, 3}:
+            is_trading_weekday = True
     else:
         # From Jan 5, 2026, trading is Monday (0) to Friday (4)
-        return weekday in {0, 1, 2, 3, 4}
+        if weekday in {0, 1, 2, 3, 4}:
+            is_trading_weekday = True
+            
+    if not is_trading_weekday:
+        return TradingDayInfo(is_trading=False, reason="סוף שבוע")
 
-def get_trading_hours(moment: datetime) -> Optional[Tuple[time, time]]:
-    """Get the start and stop trading times for a given datetime."""
-    if not is_trading_day(moment):
-        return None
-
-    d = moment.date()
-    year = d.year
-    weekday = d.weekday()
+    # If we are here, it's a trading day. Now let's get the hours.
     start_time = time(9, 25)
 
     # Check for shortened trading days (Chol HaMoed)
-    if (year == 2025 and d in _SHORT_DAYS_2025) or \
-       (year == 2026 and d in _SHORT_DAYS_2026):
-        return start_time, time(14, 25)
+    short_days = _SHORT_DAYS_2025 if year == 2025 else _SHORT_DAYS_2026
+    if d in short_days:
+        return TradingDayInfo(
+            is_trading=True,
+            is_short=True,
+            reason=short_days[d],
+            start_time=start_time,
+            stop_time=time(14, 25)
+        )
 
     # Regular trading hours
+    stop_time = None
     if year < 2026 or (year == 2026 and d.month == 1 and d.day < 5):
         # Schedule until Jan 5, 2026 (Sun-Thu)
         if weekday == 6:  # Sunday
@@ -107,5 +130,9 @@ def get_trading_hours(moment: datetime) -> Optional[Tuple[time, time]]:
             stop_time = time(13, 50)
         else:  # Monday to Thursday
             stop_time = time(17, 25)
-
-    return start_time, stop_time
+            
+    return TradingDayInfo(
+        is_trading=True,
+        start_time=start_time,
+        stop_time=stop_time
+    )

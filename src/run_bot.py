@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 
 from settings import settings
 from main import main as run_bot_main
-from tase_calendar import get_trading_hours
+from tase_calendar import get_trading_day_info, TradingDayInfo
 
 _SLEEP_GRANULARITY_SEC = 60.0
 
@@ -27,25 +27,13 @@ TZ = _resolve_timezone()
 TZ_NAME = getattr(TZ, "key", str(TZ))
 
 
-def _session_bounds(moment: datetime) -> Optional[Tuple[datetime, datetime]]:
-    """Get the trading session start and end for a given datetime."""
-    hours = get_trading_hours(moment)
-    if not hours:
-        return None
-    
-    start_time, stop_time = hours
-    day = moment.date()
-    start = datetime.combine(day, start_time, tzinfo=TZ)
-    stop = datetime.combine(day, stop_time, tzinfo=TZ)
-    return start, stop
-
-
-def _is_within_session(moment: datetime) -> bool:
+def _is_within_session(moment: datetime, day_info: TradingDayInfo) -> bool:
     """Check if the current moment is within a trading session."""
-    bounds = _session_bounds(moment)
-    if not bounds:
+    if not day_info.is_trading:
         return False
-    start, stop = bounds
+    
+    start = datetime.combine(moment.date(), day_info.start_time, tzinfo=TZ)
+    stop = datetime.combine(moment.date(), day_info.stop_time, tzinfo=TZ)
     return start <= moment < stop
 
 
@@ -91,11 +79,11 @@ def _next_session_start(after: datetime) -> datetime:
         # Check at noon to be safe with timezones
         candidate_moment = datetime.combine(candidate_day, time(12, 0), tzinfo=TZ)
         
-        bounds = _session_bounds(candidate_moment)
-        if not bounds:
+        day_info = get_trading_day_info(candidate_moment)
+        if not day_info.is_trading:
             continue
         
-        candidate_start, _ = bounds
+        candidate_start = datetime.combine(candidate_day, day_info.start_time, tzinfo=TZ)
         if candidate_start > after:
             return candidate_start
             
@@ -107,16 +95,19 @@ async def run_scheduled() -> None:
     off_session_message_sent = False
     while True:
         now = datetime.now(TZ)
-        if _is_within_session(now):
+        day_info = get_trading_day_info(now)
+
+        if _is_within_session(now, day_info):
             off_session_message_sent = False  # Reset for next off-session period
-            _, stop_at = _session_bounds(now)
+            stop_at = datetime.combine(now.date(), day_info.stop_time, tzinfo=TZ)
             await _run_session(stop_at)
             continue
 
         if not off_session_message_sent:
             print("[INFO] Outside of trading hours. Sending final update.")
             try:
-                await run_bot_main(run_once=True, market_open=False)
+                # Pass the reason for the market being closed (holiday, weekend, etc.)
+                await run_bot_main(run_once=True, market_open=False, day_info=day_info)
                 off_session_message_sent = True
                 print("[INFO] Final update sent. Waiting for next session.")
             except Exception as exc:
