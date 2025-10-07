@@ -4,13 +4,12 @@ import asyncio
 from contextlib import suppress
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
+from typing import Optional, Tuple
 
 from settings import settings
 from main import main as run_bot_main
+from tase_calendar import get_trading_hours
 
-_WORKING_DAYS = {6, 0, 1, 2, 3}
-_START_TIME = time(hour=10, minute=0)
-_STOP_TIME = time(hour=18, minute=0)
 _SLEEP_GRANULARITY_SEC = 60.0
 
 
@@ -28,36 +27,30 @@ TZ = _resolve_timezone()
 TZ_NAME = getattr(TZ, "key", str(TZ))
 
 
-def _is_workday(moment: datetime) -> bool:
-    return moment.weekday() in _WORKING_DAYS
-
-
-def _session_bounds(moment: datetime) -> tuple[datetime, datetime]:
+def _session_bounds(moment: datetime) -> Optional[Tuple[datetime, datetime]]:
+    """Get the trading session start and end for a given datetime."""
+    hours = get_trading_hours(moment)
+    if not hours:
+        return None
+    
+    start_time, stop_time = hours
     day = moment.date()
-    start = datetime.combine(day, _START_TIME, tzinfo=TZ)
-    stop = datetime.combine(day, _STOP_TIME, tzinfo=TZ)
+    start = datetime.combine(day, start_time, tzinfo=TZ)
+    stop = datetime.combine(day, stop_time, tzinfo=TZ)
     return start, stop
 
 
 def _is_within_session(moment: datetime) -> bool:
-    if not _is_workday(moment):
+    """Check if the current moment is within a trading session."""
+    bounds = _session_bounds(moment)
+    if not bounds:
         return False
-    start, stop = _session_bounds(moment)
+    start, stop = bounds
     return start <= moment < stop
 
 
-def _next_session_start(after: datetime) -> datetime:
-    for offset in range(0, 8):
-        candidate_day = (after + timedelta(days=offset)).date()
-        candidate_start = datetime.combine(candidate_day, _START_TIME, tzinfo=TZ)
-        if not _is_workday(candidate_start):
-            continue
-        if candidate_start > after:
-            return candidate_start
-    raise RuntimeError("Unable to find next session start within 7 days")
-
-
 async def _sleep_until(target: datetime) -> None:
+    """Sleep until a target datetime is reached."""
     while True:
         now = datetime.now(TZ)
         remaining = (target - now).total_seconds()
@@ -69,7 +62,7 @@ async def _sleep_until(target: datetime) -> None:
 async def _run_session(stop_at: datetime) -> None:
     stop_label = stop_at.astimezone(TZ).strftime("%Y-%m-%d %H:%M %Z")
     print(f"[INFO] Starting bot updates until {stop_label}")
-    bot_task = asyncio.create_task(run_bot_main())
+    bot_task = asyncio.create_task(run_bot_main(run_once=False, market_open=True))
     try:
         remaining = max(0.0, (stop_at - datetime.now(TZ)).total_seconds())
         await asyncio.wait_for(bot_task, timeout=remaining)
@@ -91,14 +84,47 @@ async def _run_session(stop_at: datetime) -> None:
         raise SystemExit("[ERROR] Bot task finished before the scheduled stop time. See logs above.")
 
 
+def _next_session_start(after: datetime) -> datetime:
+    """Find the start of the next trading session."""
+    for offset in range(0, 8):
+        candidate_day = (after + timedelta(days=offset)).date()
+        # Check at noon to be safe with timezones
+        candidate_moment = datetime.combine(candidate_day, time(12, 0), tzinfo=TZ)
+        
+        bounds = _session_bounds(candidate_moment)
+        if not bounds:
+            continue
+        
+        candidate_start, _ = bounds
+        if candidate_start > after:
+            return candidate_start
+            
+    raise RuntimeError("Unable to find next session start within 7 days")
+
+
 async def run_scheduled() -> None:
     print(f"[INFO] Scheduler running in timezone {TZ_NAME}")
+    off_session_message_sent = False
     while True:
         now = datetime.now(TZ)
         if _is_within_session(now):
+            off_session_message_sent = False  # Reset for next off-session period
             _, stop_at = _session_bounds(now)
             await _run_session(stop_at)
             continue
+
+        if not off_session_message_sent:
+            print("[INFO] Outside of trading hours. Sending final update.")
+            try:
+                await run_bot_main(run_once=True, market_open=False)
+                off_session_message_sent = True
+                print("[INFO] Final update sent. Waiting for next session.")
+            except Exception as exc:
+                print(f"[ERROR] Failed to send off-session message: {exc}")
+                # Don't set flag, retry on next check after a delay
+                await asyncio.sleep(_SLEEP_GRANULARITY_SEC)
+                continue
+
         next_start = _next_session_start(now)
         start_label = next_start.strftime("%Y-%m-%d %H:%M %Z")
         print(f"[INFO] Waiting until {start_label} to start updates.")

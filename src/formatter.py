@@ -24,10 +24,31 @@ def _fmt_pct(x: float, digits: int = 2) -> str:
     return f"{sign}{x:.{digits}f}%"
 
 
-def build_message(quotes: Iterable, tz: str) -> str:
+def build_message(quotes: Iterable, tz: str, market_closed: bool = False) -> str:
     """Assemble the full MarkdownV2 message body."""
-    now = pendulum.now(tz).format("HH:mm")
-    lines = [f"*מדדי ת״א – שינוי יומי* _\\(עודכן: {now}\\)_"]
+    if market_closed:
+        # Assuming all quotes are from the same day, use the first one for the date
+        first_quote = next(iter(quotes), None)
+        if first_quote and first_quote.price_date:
+            date_str = pendulum.instance(first_quote.price_date).in_timezone(tz).format("DD/MM/YYYY")
+            header = [
+                "*המסחר בבורסה סגור כעת\\.*",
+                f"*הנתונים מעודכנים ליום המסחר האחרון \\({date_str}\\)*",
+                "",
+                "*מדדי ת״א – סגירה* 📊📉📈",
+            ]
+        else:
+            header = [
+                "*המסחר בבורסה סגור כעת\\.*",
+                "*הנתונים מעודכנים ליום המסחר האחרון\\.*",
+                "",
+                "*מדדי ת״א – סגירה* 📊📉📈",
+            ]
+        lines = header
+    else:
+        now = pendulum.now(tz).format("HH:mm")
+        lines = [f"*מדדי ת״א – שינוי יומי* _\\(עודכן: {now}\\)_ 📊📉📈"]
+
     for q in quotes:
         # Choose emoji based on change percentage
         if q.change_pct > 0:

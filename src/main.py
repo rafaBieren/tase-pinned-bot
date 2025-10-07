@@ -17,10 +17,10 @@ from formatter import build_message
 
 UPDATE_INTERVAL_SEC = 300
 SEND_RETRY_DELAYS = [0, 2, 4]
-FALLBACK_TEXT = "\u05dc\u05d0 \u05d4\u05e6\u05dc\u05d7\u05ea\u05d9 \u05dc\u05d4\u05d1\u05d9\u05d0 \u05db\u05e8\u05d2\u05e2 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05dc\u05de\u05d3\u05d3\u05d9\u05dd. \u05e0\u05e1\u05d5 \u05e9\u05d5\u05d1 \u05de\u05d0\u05d5\u05d7\u05e8 \u05d9\u05d5\u05ea\u05e8."
+FALLBACK_TEXT = "לא הצלחתי להביא כרגע נתונים למדדים. נסו שוב מאוחר יותר."
 
 
-async def main() -> None:
+async def main(run_once: bool = False, market_open: bool = True) -> None:
     """Send indices update message and refresh it every 5 minutes."""
     # Ensure .env values override any existing environment variables
     load_dotenv(override=True)
@@ -62,7 +62,7 @@ async def main() -> None:
         if not quotes:
             text = FALLBACK_TEXT
         else:
-            text = build_message(quotes=quotes, tz=settings.tz)
+            text = build_message(quotes=quotes, tz=settings.tz, market_closed=not market_open)
 
         print(f"[INFO] Generated message with {len(quotes)} indices")
         print(f"[INFO] Message preview: {text[:100]}...")
@@ -104,6 +104,8 @@ async def main() -> None:
                     print("[ERROR] Failed to send message after retries")
             if not send_success:
                 return
+            if run_once:
+                break
         else:
             if text == last_text:
                 print("[INFO] No changes detected; skipping edit.")
@@ -118,6 +120,8 @@ async def main() -> None:
                     )
                     last_text = text
                     print("[OK] Message edited successfully.")
+                    if run_once:
+                        break
                 except BadRequest as exc:
                     if "message is not modified" in str(exc).lower():
                         print("[INFO] Telegram reported message is not modified; skipping.")
@@ -125,6 +129,9 @@ async def main() -> None:
                         print(f"[ERROR] Failed to edit message: {exc}")
                 except TimedOut:
                     print("[WARN] Edit timed out; will retry on next cycle.")
+
+        if run_once:
+            return
 
         await asyncio.sleep(UPDATE_INTERVAL_SEC)
 

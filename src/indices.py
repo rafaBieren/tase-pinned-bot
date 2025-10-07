@@ -16,6 +16,7 @@ from typing import Optional, Iterable, List, Dict, Tuple
 import math
 import os
 import time
+from datetime import datetime, timedelta
 
 import requests
 
@@ -102,11 +103,16 @@ def _fetch_spark_batch(symbols: Iterable[str]) -> Dict[str, Dict[str, float]]:
         meta = responses[0].get("meta") or {}
         price = meta.get("regularMarketPrice")
         prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+        market_time = meta.get("regularMarketTime")
 
-        if price is None or prev_close is None:
+        if price is None or prev_close is None or market_time is None:
             continue
 
-        results[symbol] = {"price": float(price), "prev_close": float(prev_close)}
+        results[symbol] = {
+            "price": float(price),
+            "prev_close": float(prev_close),
+            "timestamp": int(market_time),
+        }
 
     missing = sorted(set(tickers) - set(results))
     if missing:
@@ -137,11 +143,12 @@ def _cache_data(cache_key: str, quote: IndexQuote) -> None:
 class IndexQuote:
     """In-memory representation of a single index quote and its derived fields."""
 
-    def __init__(self, name: str, symbol: str, price: float, prev_close: float):
+    def __init__(self, name: str, symbol: str, price: float, prev_close: float, price_date: Optional[datetime] = None):
         self.name = name
         self.symbol = symbol
         self.price = float(price)
         self.prev_close = float(prev_close)
+        self.price_date = price_date
 
     @property
     def change_pct(self) -> float:
@@ -194,7 +201,7 @@ def _try_get_prev_close(symbol: str) -> Optional[float]:
     return None
 
 
-def _try_get_last_price(symbol: str) -> Optional[float]:
+def _try_get_last_price(symbol: str) -> Optional[Tuple[float, datetime]]:
     """Fetch the latest intraday close price with retry logic."""
     import random
 
@@ -224,7 +231,11 @@ def _try_get_last_price(symbol: str) -> Optional[float]:
                     logger.debug(f"Close series empty for {symbol} at {period}/{interval}")
                     break
 
-                return float(closes.iloc[-1])
+                last_price = float(closes.iloc[-1])
+                last_timestamp = closes.index[-1]
+                # last_timestamp can be pd.Timestamp; convert to python datetime
+                last_dt = last_timestamp.to_pydatetime()
+                return last_price, last_dt
             except Exception as exc:
                 if attempt < max_retries - 1:
                     delay = base_delay + random.uniform(0, 0.5)
@@ -241,7 +252,8 @@ def _try_get_last_price(symbol: str) -> Optional[float]:
             info = ticker.fast_info
             last = getattr(info, "last_price", None) or getattr(info, "lastPrice", None) or info.get("last_price", None)
             if last is not None:
-                return float(last)
+                # fast_info does not provide a reliable timestamp, so we don't return one
+                return float(last), None
         except Exception as exc:
             if attempt < max_retries - 1:
                 delay = base_delay + random.uniform(0, 0.5)
@@ -276,16 +288,22 @@ def fetch_index(name: str, symbol: str, spark_data: Optional[Dict[str, Dict[str,
 
         price: Optional[float] = None
         prev_close: Optional[float] = None
+        price_date: Optional[datetime] = None
 
         data_point = spark_data.get(attempt_symbol)
         if data_point:
             price = data_point.get("price")
             prev_close = data_point.get("prev_close")
-            if price is not None and prev_close is not None:
+            timestamp = data_point.get("timestamp")
+            if price is not None and prev_close is not None and timestamp is not None:
                 logger.info(f"Using Yahoo spark data for {name} ({attempt_symbol})")
+                price_date = datetime.fromtimestamp(int(timestamp))
 
         if price is None:
-            price = _try_get_last_price(attempt_symbol)
+            price_info = _try_get_last_price(attempt_symbol)
+            if price_info:
+                price, price_date = price_info
+
         if price is None:
             logger.warning(f"Failed to get last price for {attempt_symbol}")
             continue
@@ -297,7 +315,13 @@ def fetch_index(name: str, symbol: str, spark_data: Optional[Dict[str, Dict[str,
             continue
 
         logger.info(f"Successfully fetched data for {name} using symbol: {attempt_symbol}")
-        quote = IndexQuote(name=name, symbol=attempt_symbol, price=price, prev_close=prev_close)
+        quote = IndexQuote(
+            name=name,
+            symbol=attempt_symbol,
+            price=price,
+            prev_close=prev_close,
+            price_date=price_date,
+        )
         _cache_data(cache_key, quote)
         return quote
 
@@ -312,6 +336,7 @@ def fetch_index(name: str, symbol: str, spark_data: Optional[Dict[str, Dict[str,
                 symbol=symbol,
                 price=alt_data['price'],
                 prev_close=alt_data['prev_close']
+                # price_date is not available from this source
             )
             logger.info(f"Successfully fetched {name} from alternative source")
             _cache_data(cache_key, quote)
