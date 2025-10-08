@@ -16,10 +16,60 @@ from settings import settings
 from indices import fetch_all
 from formatter import build_message
 from tase_calendar import TradingDayInfo
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 
 UPDATE_INTERVAL_SEC = 300
 SEND_RETRY_DELAYS = [0, 2, 4]
 FALLBACK_TEXT = "לא הצלחתי להביא כרגע נתונים למדדים. נסו שוב מאוחר יותר."
+MESSAGE_ID_FILE = "message_id.txt"
+
+
+def _get_tz() -> ZoneInfo:
+    """Resolve timezone from settings with a fallback."""
+    try:
+        return ZoneInfo(settings.tz)
+    except Exception:
+        return ZoneInfo("Asia/Jerusalem")
+
+
+def _read_message_id() -> Optional[int]:
+    """Read message ID if it exists and belongs to the current trading day."""
+    if not os.path.exists(MESSAGE_ID_FILE):
+        return None
+
+    with open(MESSAGE_ID_FILE, "r") as f:
+        content = f.read().strip()
+
+    parts = content.split(",")
+    if len(parts) != 2:
+        return None
+
+    message_id_str, date_str = parts
+    if not message_id_str.isdigit():
+        return None
+
+    try:
+        stored_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+    tz = _get_tz()
+    today = datetime.now(tz).date()
+
+    if stored_date == today:
+        return int(message_id_str)
+
+    return None
+
+
+def _write_message_id(message_id: int) -> None:
+    """Write message ID and current date to file."""
+    tz = _get_tz()
+    today_str = datetime.now(tz).date().isoformat()
+    with open(MESSAGE_ID_FILE, "w") as f:
+        f.write(f"{message_id},{today_str}")
 
 
 async def main(run_once: bool = False, market_open: bool = True, day_info: Optional[TradingDayInfo] = None) -> None:
@@ -54,7 +104,7 @@ async def main(run_once: bool = False, market_open: bool = True, day_info: Optio
         # Network is slow or blocked; proceed and let send attempt retries handle it
         pass
 
-    message_id = None
+    message_id = _read_message_id()
     last_text = None
 
     while True:
@@ -85,6 +135,7 @@ async def main(run_once: bool = False, market_open: bool = True, day_info: Optio
                         disable_web_page_preview=True,
                     )
                     message_id = msg.message_id
+                    _write_message_id(message_id)
                     last_text = text
                     try:
                         await bot.pin_chat_message(

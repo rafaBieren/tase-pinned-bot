@@ -35,6 +35,17 @@ def build_message(
     header = []
     day_info = day_info or TradingDayInfo(is_trading=not market_closed)
 
+    # Add a note for shortened trading days
+    if day_info.is_trading and day_info.is_short:
+        stop_time_str = day_info.stop_time.strftime("%H:%M")
+        reason_str = f" \\({day_info.reason}\\)" if day_info.reason else ""
+        # Calculate the time 20 minutes before stop_time
+        stop_hour, stop_minute = map(int, stop_time_str.split(':'))
+        total_minutes = stop_hour * 60 + stop_minute - 20
+        adjusted_hour, adjusted_minute = divmod(total_minutes, 60)
+        adjusted_stop_time = f"{adjusted_hour:02d}:{adjusted_minute:02d}"
+        header.append(f"_יום מסחר מקוצר עד {adjusted_stop_time}{reason_str}_")
+
     # Special message for non-trading days
     if not day_info.is_trading and day_info.reason:
         header.append(f"*{day_info.reason}*")
@@ -59,12 +70,6 @@ def build_message(
         now = pendulum.now(tz).format("HH:mm")
         title = f"*מדדי ת״א – שינוי יומי* _\\(עודכן: {now}\\)_ 📊📉📈"
         
-        # Add a note for shortened trading days
-        if day_info.is_short:
-            stop_time_str = day_info.stop_time.strftime("%H:%M")
-            reason_str = f" \\({day_info.reason}\\)" if day_info.reason else ""
-            header.append(f"_יום מסחר מקוצר עד {stop_time_str}{reason_str}_")
-
         header.append(title)
         lines = header
 
@@ -83,7 +88,7 @@ def build_message(
             price_formatted = _fmt_num(q.price, 2).replace(",", "\\,").replace(".", "\\.")
             pct_formatted = _fmt_pct(q.change_pct).replace(".", "\\.").replace("+", "\\+").replace("-", "\\-")
             lines.append(f"{emoji} {name_escaped}: {pct_formatted} \\({price_formatted}\\)")
-        lines.append("_הערה: ייתכן עיכוב קטן בעדכון הנתונים\\._")
+        lines.append("_הערה: ייתכן עיכוב של עד 15 דקות בעדכון הנתונים\\._")
     
     # Add separator and promotional content
     lines.append("")
