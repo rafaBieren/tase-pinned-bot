@@ -113,7 +113,7 @@ def get_trading_day_info(moment: datetime) -> TradingDayInfo:
             is_short=True,
             reason=short_days[d],
             start_time=start_time,
-            stop_time=time(14, 25)
+            stop_time=time(14, 45) # stop the bot 20 minutes after the end of the trading day because of the delay in the data
         )
 
     # Regular trading hours
@@ -123,13 +123,13 @@ def get_trading_day_info(moment: datetime) -> TradingDayInfo:
         if weekday == 6:  # Sunday
             stop_time = time(15, 50)
         else:  # Monday to Thursday
-            stop_time = time(17, 25)
+            stop_time = time(17, 45) # stop the bot 20 minutes after the end of the trading day because of the delay in the data
     else:
         # Schedule from Jan 5, 2026 onwards (Mon-Fri)
         if weekday == 4:  # Friday
             stop_time = time(13, 50)
         else:  # Monday to Thursday
-            stop_time = time(17, 25)
+            stop_time = time(17, 45) # stop the bot 20 minutes after the end of the trading day because of the delay in the data
             
     return TradingDayInfo(
         is_trading=True,

@@ -47,10 +47,10 @@ async def _sleep_until(target: datetime) -> None:
         await asyncio.sleep(min(remaining, _SLEEP_GRANULARITY_SEC))
 
 
-async def _run_session(stop_at: datetime) -> None:
+async def _run_session(stop_at: datetime, day_info: TradingDayInfo) -> None:
     stop_label = stop_at.astimezone(TZ).strftime("%Y-%m-%d %H:%M %Z")
     print(f"[INFO] Starting bot updates until {stop_label}")
-    bot_task = asyncio.create_task(run_bot_main(run_once=False, market_open=True))
+    bot_task = asyncio.create_task(run_bot_main(run_once=False, market_open=True, day_info=day_info))
     try:
         remaining = max(0.0, (stop_at - datetime.now(TZ)).total_seconds())
         await asyncio.wait_for(bot_task, timeout=remaining)
@@ -100,7 +100,7 @@ async def run_scheduled() -> None:
         if _is_within_session(now, day_info):
             off_session_message_sent = False  # Reset for next off-session period
             stop_at = datetime.combine(now.date(), day_info.stop_time, tzinfo=TZ)
-            await _run_session(stop_at)
+            await _run_session(stop_at, day_info)
             continue
 
         if not off_session_message_sent:
